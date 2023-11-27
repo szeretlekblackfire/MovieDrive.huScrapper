@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+from flask_cors import cross_origin
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -10,11 +11,28 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
 }
 
+def transform_url(url):
+    url = url.replace('https://moviedrive.hu', '')
+
+    film_pattern = r"/film/\?id=(\d+)"
+    film_replacement = r"/filmek?id=\1"
+    series_pattern = r"/sorozat/\?id=(\d+)"
+    series_replacement = r"/sorozatok?id=\1"
+
+    if "/film/?" in url:
+        return re.sub(film_pattern, film_replacement, url)
+    elif "/sorozat/?" in url:
+        return re.sub(series_pattern, series_replacement, url)
+    else:
+        return url
+
 @app.route('/')
+@cross_origin()
 def welcome():
     return "Welcome to moviedrive api! 🎉"
 
 @app.route('/kezdolap', methods=['GET'])
+@cross_origin()
 def scrape_moviedrive():
     url = "https://moviedrive.hu/kezdolap/"
     response = requests.get(url, headers=headers)
@@ -38,6 +56,9 @@ def extract_cards_info(cards, include_description=False, include_views=True):
         movie['type'] = card.find('span', class_='card__type').text
         movie['poster'] = card.find('img')['src']
         movie['title'] = card.find('h3', class_='card__title').a.text
+        id = card.find('h3', class_='card__title').a['href']
+        finalid = transform_url(id)
+        movie['id'] = finalid
         movie['category'] = [genre.text for genre in card.find_all('a', href=lambda href: href and "genere" in href)]
 
         score_views_text = card.find('span', class_='card__rate').text.strip().split()
@@ -55,8 +76,11 @@ def extract_cards_info(cards, include_description=False, include_views=True):
     return card_list
 
 @app.route('/search')
+@cross_origin()
 def search():
     query = request.args.get('q', '')
+    if not query:
+        return jsonify({'error': 'Query parameter is required'}), 400
     search_url = f"https://moviedrive.hu/filmek/?q={query}"
     response = requests.get(search_url, headers=headers)
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -76,6 +100,7 @@ def get_total_pages():
     return 'Unknown'
 
 @app.route('/tartalmak')
+@cross_origin()
 def movies():
     page_number = request.args.get('p', '1')
     movies_url = f"https://moviedrive.hu/filmek/?p={page_number}"
@@ -90,6 +115,7 @@ def movies():
     return jsonify({"currentPage": page_number, "totalPages": total_pages, "movies": movies_data})
 
 @app.route('/sorozatok', methods=['GET'])
+@cross_origin()
 def series():
     series_id = request.args.get('id', '')
     evad = request.args.get('evad', None)
@@ -192,6 +218,7 @@ def series():
     return jsonify(series_data)
 
 @app.route('/filmek', methods=['GET'])
+@cross_origin()
 def film_details():
     input_id = request.args.get('id', '')
     film_data = {}
