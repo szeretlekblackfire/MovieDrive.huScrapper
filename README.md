@@ -27,5 +27,4 @@ Documentation for this tool will be provided in the future. (until you can check
 ## To-Do List
 
 - Implement error handling.
-- Showing the ID for the Searched or Kezdolap content.
 - Add additional features and improvements.
